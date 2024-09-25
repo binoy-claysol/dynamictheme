@@ -1,0 +1,97 @@
+name: Example app
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+defaults:
+  run:
+    working-directory: example
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+
+      - name: Get project Flutter version 🏷️
+        id: fvm-config
+        uses: kuhnroyal/flutter-fvm-config-action@v1.2.0
+
+      - name: Setup Flutter 💻
+        uses: subosito/flutter-action@v2.16.0
+        with:
+          flutter-version: ${{ steps.fvm-config.outputs.FLUTTER_VERSION }}
+          cache: true
+          cache-key: ${{ runner.os }}-flutter-${{ steps.fvm-config.outputs.FLUTTER_VERSION }}-${{ hashFiles('**/pubspec.lock') }}
+
+      - name: Cache Pub 💾
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            **/.dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Cache build 💾
+        uses: mikehardy/buildcache-action@v2.1.0
+        with:
+          cache_key: ${{ runner.os }}-build-example
+
+      - name: Start iOS simulator 📱
+        uses: futureware-tech/simulator-action@v3
+        with:
+          model: "iPhone 15"
+
+      - name: Run integration tests 🧪
+        run: |
+          flutter pub get
+          # Build the app first to avoid timing out
+          # https://github.com/flutter/flutter/issues/105913
+          flutter build ios --simulator --target=integration_test/app_test.dart
+          flutter test integration_test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+
+      - name: Get project Flutter version 🏷️
+        id: fvm-config
+        uses: kuhnroyal/flutter-fvm-config-action@v1.2.0
+
+      - name: Setup Flutter 💻
+        uses: subosito/flutter-action@v2.16.0
+        with:
+          flutter-version: ${{ steps.fvm-config.outputs.FLUTTER_VERSION }}
+          cache: true
+          cache-key: ${{ runner.os }}-flutter-${{ steps.fvm-config.outputs.FLUTTER_VERSION }}-${{ hashFiles('**/pubspec.lock') }}
+
+      - name: Cache Pub 💾
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            **/.dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Run linting 🧪
+        run: |
+          flutter pub get
+          flutter analyze
